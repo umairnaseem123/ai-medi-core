@@ -6,3 +6,69 @@ datasource db {
   url      = env("DATABASE_URL")
   provider = "postgresql"
 }
+
+enum Role {
+  SUPER_ADMIN
+  HOSPITAL_ADMIN
+  DOCTOR
+  NURSE
+  LAB_TECH
+  PHARMACIST
+  RECEPTIONIST
+  PATIENT
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Organization {
+  id        String     @id @default(uuid())
+  name      String
+  hospitals Hospital[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Hospital {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  code           String       @unique
+  users          User[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model User {
+  id            String         @id @default(uuid())
+  hospitalId    String?
+  hospital      Hospital?      @relation(fields: [hospitalId], references: [id])
+  email         String         @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          Role
+  status        UserStatus     @default(ACTIVE)
+  refreshTokens RefreshToken[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([hospitalId])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
