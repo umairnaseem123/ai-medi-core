@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -9,6 +10,7 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.use(helmet());
+  app.use(cookieParser());
   app.setGlobalPrefix('api/v1');
   app.enableCors({
     origin: config.get<string>('frontendUrl'),
@@ -26,4 +28,4 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`MediCore API running on http://localhost:${port}/api/v1`);
 }
-bootstrap()
+bootstrap();
