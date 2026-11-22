@@ -49,7 +49,11 @@ enum PrescriptionStatus {
   DISPENSED
   CANCELLED
 }
-
+enum StockMovementType {
+  RECEIVE
+  DISPENSE
+  ADJUST
+}
 model Organization {
   id        String     @id @default(uuid())
   name      String
@@ -74,6 +78,7 @@ model Hospital {
       consultations  Consultation[]
         labOrders      LabOrder[]
           prescriptions  Prescription[]
+            medicines      Medicine[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -122,6 +127,7 @@ model User {
   enteredLabResults   LabOrder[] @relation("EnteredLabResults")
     prescribed          Prescription[] @relation("PrescribedBy")
   dispensed           Prescription[] @relation("DispensedBy")
+    stockMovements      StockMovement[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -256,4 +262,34 @@ model PrescriptionItem {
   durationDays   Int
 
   @@index([prescriptionId])
+}
+model Medicine {
+  id         String          @id @default(uuid())
+  hospitalId String
+  hospital   Hospital        @relation(fields: [hospitalId], references: [id])
+  name       String
+  unit       String
+  quantity   Int             @default(0)
+  reorderAt  Int             @default(10)
+  movements  StockMovement[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([hospitalId, name])
+  @@index([hospitalId])
+}
+
+model StockMovement {
+  id         String            @id @default(uuid())
+  hospitalId String
+  medicineId String
+  medicine   Medicine          @relation(fields: [medicineId], references: [id])
+  userId     String
+  user       User              @relation(fields: [userId], references: [id])
+  type       StockMovementType
+  change     Int
+  reason     String?
+  createdAt  DateTime          @default(now())
+
+  @@index([hospitalId, medicineId])
 }

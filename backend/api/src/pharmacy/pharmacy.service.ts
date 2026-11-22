@@ -106,20 +106,79 @@ export class PharmacyService {
     const hid = this.requireHospital(hospitalId);
     const rx = await this.prisma.prescription.findFirst({
       where: { id, hospitalId: hid },
+      include: { items: true },
     });
     if (!rx) throw new NotFoundException('Prescription not found');
     if (rx.status !== 'PENDING') {
       throw new ConflictException('Prescription is already closed');
     }
 
-    const updated = await this.prisma.prescription.update({
-      where: { id },
-      data:
-        dto.status === 'DISPENSED'
-          ? { status: 'DISPENSED', dispensedById: userId, dispensedAt: new Date() }
-          : { status: 'CANCELLED' },
-      include: { items: true },
-    });
+    let updated;
+    if (dto.status === 'CANCELLED') {
+      updated = await this.prisma.prescription.update({
+        where: { id },
+        data: { status: 'CANCELLED' },
+        include: { items: true },
+      });
+    } else {
+      // Everything below succeeds or fails together
+      updated = await this.prisma.$transaction(async (tx) => {
+        // Claim the prescription first so two pharmacists cannot both dispense it
+        const claimed = await tx.prescription.updateMany({
+          where: { id, hospitalId: hid, status: 'PENDING' },
+          data: {
+            status: 'DISPENSED',
+            dispensedById: userId,
+            dispensedAt: new Date(),
+          },
+        });
+        if (claimed.count === 0) {
+          throw new ConflictException('Prescription is already closed');
+        }
+
+        for (const item of rx.items) {
+          const medicine = await tx.medicine.findFirst({
+            where: {
+              hospitalId: hid,
+              name: { equals: item.medicine, mode: 'insensitive' },
+            },
+          });
+          if (!medicine) {
+            throw new ConflictException(
+              `Medicine not in inventory: ${item.medicine}`,
+            );
+          }
+          // One unit per item for now (placeholder rule)
+          const qty = 1;
+          // Conditional decrement: only succeeds while stock is sufficient
+          const deducted = await tx.medicine.updateMany({
+            where: { id: medicine.id, quantity: { gte: qty } },
+            data: { quantity: { decrement: qty } },
+          });
+          if (deducted.count === 0) {
+            throw new ConflictException(
+              `Insufficient stock: ${item.medicine}`,
+            );
+          }
+          await tx.stockMovement.create({
+            data: {
+              hospitalId: hid,
+              medicineId: medicine.id,
+              userId,
+              type: 'DISPENSE',
+              change: -qty,
+              reason: `Prescription ${id}`,
+            },
+          });
+        }
+
+        return tx.prescription.findUniqueOrThrow({
+          where: { id },
+          include: { items: true },
+        });
+      });
+    }
+
     await this.audit.log({
       hospitalId: hid,
       userId,

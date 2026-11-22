@@ -7,6 +7,7 @@ import { PharmacyModule } from './pharmacy/pharmacy.module';
 import { LaboratoryModule } from './laboratory/laboratory.module';
 import { StaffModule } from './staff/staff.module';
 import { PatientsModule } from './patients/patients.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -38,6 +39,7 @@ import { HealthModule } from './health/health.module';
     ConsultationsModule,
         LaboratoryModule,
             PharmacyModule,
+            InventoryModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
