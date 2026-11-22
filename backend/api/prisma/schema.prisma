@@ -27,6 +27,12 @@ enum UserStatus {
   ACTIVE
   SUSPENDED
 }
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
 
 model Organization {
   id        String     @id @default(uuid())
@@ -48,6 +54,7 @@ model Hospital {
    users          User[]
   departments    Department[]
   patients       Patient[]
+    appointments   Appointment[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -65,6 +72,7 @@ model Patient {
   phone       String?
   email       String?
   address     String?
+    appointments Appointment[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -86,6 +94,7 @@ model User {
   role          Role
   status        UserStatus     @default(ACTIVE)
   refreshTokens RefreshToken[]
+    doctorAppointments Appointment[] @relation("DoctorAppointments")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -117,4 +126,23 @@ model Department {
 
   @@unique([hospitalId, name])
   @@index([hospitalId])
+}
+model Appointment {
+  id         String            @id @default(uuid())
+  hospitalId String
+  hospital   Hospital          @relation(fields: [hospitalId], references: [id])
+  patientId  String
+  patient    Patient           @relation(fields: [patientId], references: [id])
+  doctorId   String
+  doctor     User              @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  startsAt   DateTime
+  endsAt     DateTime
+  reason     String?
+  status     AppointmentStatus @default(SCHEDULED)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([hospitalId, startsAt])
+  @@index([doctorId, startsAt])
+  @@index([patientId])
 }
