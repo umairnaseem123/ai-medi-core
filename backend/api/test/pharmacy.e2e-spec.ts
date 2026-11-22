@@ -53,11 +53,21 @@ describe('Pharmacy (e2e)', () => {
     const p = await api()
       .post('/api/v1/patients')
       .set(auth(adminToken))
-      .send({ firstName: 'Pat', lastName: `Ient${n}`, dateOfBirth: '1990-01-01', gender: 'MALE' });
+      .send({
+        firstName: 'Pat',
+        lastName: `Ient${n}`,
+        dateOfBirth: '1990-01-01',
+        gender: 'MALE',
+      });
     expect(p.status).toBe(201);
 
     const doctor = await createStaff(adminToken, n, 'DOCTOR', 'DoctorPass#12345');
-    const pharmacist = await createStaff(adminToken, n, 'PHARMACIST', 'PharmaPass#12345');
+    const pharmacist = await createStaff(
+      adminToken,
+      n,
+      'PHARMACIST',
+      'PharmaPass#12345',
+    );
 
     return {
       adminToken,
@@ -71,7 +81,12 @@ describe('Pharmacy (e2e)', () => {
   const rx = (patientId: string) => ({
     patientId,
     items: [
-      { medicine: 'Synthetic Med 100mg', dose: '1 tablet', frequency: 'Daily', durationDays: 3 },
+      {
+        medicine: 'Synthetic Med 100mg',
+        dose: '1 tablet',
+        frequency: 'Daily',
+        durationDays: 3,
+      },
     ],
   });
 
@@ -167,6 +182,18 @@ describe('Pharmacy (e2e)', () => {
   });
 
   it('pharmacist A dispenses, then it is closed (409) and audit logged', async () => {
+    // Dispensing deducts stock, so the medicine must exist with stock
+    const med = await api()
+      .post('/api/v1/inventory')
+      .set(auth(A.pharmacist.token))
+      .send({ name: 'Synthetic Med 100mg', unit: 'tablet' })
+      .expect(201);
+    await api()
+      .post(`/api/v1/inventory/${med.body.id}/receive`)
+      .set(auth(A.pharmacist.token))
+      .send({ quantity: 10 })
+      .expect(201);
+
     await api()
       .patch(`/api/v1/prescriptions/${rxA}/status`)
       .set(auth(A.pharmacist.token))
