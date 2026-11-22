@@ -1,3 +1,6 @@
+import { HospitalsModule } from './hospitals/hospitals.module';
+import { DepartmentsModule } from './departments/departments.module';
+import { StaffModule } from './staff/staff.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -9,8 +12,9 @@ import { validationSchema } from './config/validation';
 import { PrismaModule } from './database/prisma.module';
 import { HealthModule } from './health/health.module';
 
+
 @Module({
-  imports: [
+   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
@@ -19,6 +23,9 @@ import { HealthModule } from './health/health.module';
     PrismaModule,
     AuthModule,
     HealthModule,
+    HospitalsModule,
+    DepartmentsModule,
+    StaffModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
