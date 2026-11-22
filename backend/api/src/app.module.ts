@@ -3,6 +3,7 @@ import { ConsultationsModule } from './consultations/consultations.module';
 import { HospitalsModule } from './hospitals/hospitals.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { LaboratoryModule } from './laboratory/laboratory.module';
 import { StaffModule } from './staff/staff.module';
 import { PatientsModule } from './patients/patients.module';
 import { Module } from '@nestjs/common';
@@ -34,6 +35,7 @@ import { HealthModule } from './health/health.module';
         AppointmentsModule,
             AuditModule,
     ConsultationsModule,
+        LaboratoryModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
