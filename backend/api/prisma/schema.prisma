@@ -44,6 +44,11 @@ enum LabPriority {
   ROUTINE
   URGENT
 }
+enum PrescriptionStatus {
+  PENDING
+  DISPENSED
+  CANCELLED
+}
 
 model Organization {
   id        String     @id @default(uuid())
@@ -68,6 +73,7 @@ model Hospital {
     appointments   Appointment[]
       consultations  Consultation[]
         labOrders      LabOrder[]
+          prescriptions  Prescription[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -88,6 +94,7 @@ model Patient {
     appointments Appointment[]
       consultations Consultation[]
         labOrders     LabOrder[]
+          prescriptions Prescription[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -113,6 +120,8 @@ model User {
       doctorConsultations Consultation[] @relation("DoctorConsultations")
         orderedLabs         LabOrder[] @relation("OrderedLabs")
   enteredLabResults   LabOrder[] @relation("EnteredLabResults")
+    prescribed          Prescription[] @relation("PrescribedBy")
+  dispensed           Prescription[] @relation("DispensedBy")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -215,4 +224,36 @@ model LabOrder {
 
   @@index([hospitalId, status])
   @@index([hospitalId, patientId])
+}
+model Prescription {
+  id            String             @id @default(uuid())
+  hospitalId    String
+  hospital      Hospital           @relation(fields: [hospitalId], references: [id])
+  patientId     String
+  patient       Patient            @relation(fields: [patientId], references: [id])
+  prescriberId  String
+  prescriber    User               @relation("PrescribedBy", fields: [prescriberId], references: [id])
+  status        PrescriptionStatus @default(PENDING)
+  notes         String?
+  items         PrescriptionItem[]
+  dispensedById String?
+  dispensedBy   User?              @relation("DispensedBy", fields: [dispensedById], references: [id])
+  dispensedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([hospitalId, status])
+  @@index([hospitalId, patientId])
+}
+
+model PrescriptionItem {
+  id             String       @id @default(uuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine       String
+  dose           String
+  frequency      String
+  durationDays   Int
+
+  @@index([prescriptionId])
 }

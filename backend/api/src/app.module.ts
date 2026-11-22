@@ -3,6 +3,7 @@ import { ConsultationsModule } from './consultations/consultations.module';
 import { HospitalsModule } from './hospitals/hospitals.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { PharmacyModule } from './pharmacy/pharmacy.module';
 import { LaboratoryModule } from './laboratory/laboratory.module';
 import { StaffModule } from './staff/staff.module';
 import { PatientsModule } from './patients/patients.module';
@@ -36,6 +37,7 @@ import { HealthModule } from './health/health.module';
             AuditModule,
     ConsultationsModule,
         LaboratoryModule,
+            PharmacyModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
