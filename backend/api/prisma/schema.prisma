@@ -55,6 +55,7 @@ model Hospital {
   departments    Department[]
   patients       Patient[]
     appointments   Appointment[]
+      consultations  Consultation[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -73,6 +74,7 @@ model Patient {
   email       String?
   address     String?
     appointments Appointment[]
+      consultations Consultation[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -95,6 +97,7 @@ model User {
   status        UserStatus     @default(ACTIVE)
   refreshTokens RefreshToken[]
     doctorAppointments Appointment[] @relation("DoctorAppointments")
+      doctorConsultations Consultation[] @relation("DoctorConsultations")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -145,4 +148,35 @@ model Appointment {
   @@index([hospitalId, startsAt])
   @@index([doctorId, startsAt])
   @@index([patientId])
+}
+  model Consultation {
+  id            String   @id @default(uuid())
+  hospitalId    String
+  hospital      Hospital @relation(fields: [hospitalId], references: [id])
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id])
+  doctorId      String
+  doctor        User     @relation("DoctorConsultations", fields: [doctorId], references: [id])
+  appointmentId String?
+  complaint     String
+  diagnosis     String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([hospitalId, patientId])
+  @@index([doctorId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  hospitalId String?
+  userId     String
+  action     String
+  entity     String
+  entityId   String
+  createdAt  DateTime @default(now())
+
+  @@index([hospitalId, createdAt])
+  @@index([entity, entityId])
 }

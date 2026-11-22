@@ -1,3 +1,5 @@
+import { AuditModule } from './audit/audit.module';
+import { ConsultationsModule } from './consultations/consultations.module';
 import { HospitalsModule } from './hospitals/hospitals.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { AppointmentsModule } from './appointments/appointments.module';
@@ -30,6 +32,8 @@ import { HealthModule } from './health/health.module';
     StaffModule,
         PatientsModule,
         AppointmentsModule,
+            AuditModule,
+    ConsultationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
