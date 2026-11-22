@@ -1,6 +1,7 @@
 import { HospitalsModule } from './hospitals/hospitals.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { StaffModule } from './staff/staff.module';
+import { PatientsModule } from './patients/patients.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -26,6 +27,7 @@ import { HealthModule } from './health/health.module';
     HospitalsModule,
     DepartmentsModule,
     StaffModule,
+        PatientsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -17,6 +17,11 @@ enum Role {
   RECEPTIONIST
   PATIENT
 }
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
 
 enum UserStatus {
   ACTIVE
@@ -40,12 +45,32 @@ model Hospital {
   address        String?
   phone          String?
   email          String?
-  users          User[]
+   users          User[]
   departments    Department[]
+  patients       Patient[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId])
+}
+model Patient {
+  id          String    @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital  @relation(fields: [hospitalId], references: [id])
+  mrn         String
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime
+  gender      Gender
+  phone       String?
+  email       String?
+  address     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([hospitalId, mrn])
+  @@index([hospitalId])
+  @@index([hospitalId, lastName])
 }
 
 model User {
