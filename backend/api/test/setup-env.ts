@@ -2,7 +2,7 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 
 // Tests must never touch the dev database
-config({ path: resolve(process.cwd(), '.env.test'), override: true });
+config({ path: resolve(process.cwd(), '.env.test'), override: true, quiet: true });
 
 if (!process.env.DATABASE_URL?.includes('medicore_test')) {
   throw new Error(
