@@ -78,10 +78,23 @@ export class StaffService {
     if (user.role === 'HOSPITAL_ADMIN') {
       throw new ForbiddenException('Cannot change an admin account here');
     }
-    return this.prisma.user.update({
-      where: { id },
-      data: { status },
-      select: SAFE_SELECT,
-    });
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { status },
+        select: SAFE_SELECT,
+      }),
+      // Suspending also kills every active session
+      ...(status === 'SUSPENDED'
+        ? [
+            this.prisma.refreshToken.updateMany({
+              where: { userId: id, revokedAt: null },
+              data: { revokedAt: new Date() },
+            }),
+          ]
+        : []),
+    ]);
+    return updated;
   }
 }
