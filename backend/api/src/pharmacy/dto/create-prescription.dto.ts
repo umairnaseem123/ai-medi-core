@@ -34,6 +34,12 @@ export class PrescriptionItemDto {
   @Min(1)
   @Max(365)
   durationDays: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  quantity?: number;
 }
 
 export class CreatePrescriptionDto {

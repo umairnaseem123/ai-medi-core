@@ -260,7 +260,7 @@ model PrescriptionItem {
   dose           String
   frequency      String
   durationDays   Int
-
+  quantity       Int           @default(1)
   @@index([prescriptionId])
 }
 model Medicine {

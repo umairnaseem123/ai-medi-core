@@ -148,8 +148,8 @@ export class PharmacyService {
               `Medicine not in inventory: ${item.medicine}`,
             );
           }
-          // One unit per item for now (placeholder rule)
-          const qty = 1;
+                    // Doctor-prescribed quantity (defaults to 1 in the database)
+          const qty = item.quantity;
           // Conditional decrement: only succeeds while stock is sufficient
           const deducted = await tx.medicine.updateMany({
             where: { id: medicine.id, quantity: { gte: qty } },

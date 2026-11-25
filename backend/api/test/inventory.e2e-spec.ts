@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+﻿import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
@@ -198,5 +198,55 @@ describe('Inventory (e2e)', () => {
       where: { medicineId: medA, type: 'DISPENSE' },
     });
     expect(movements).toHaveLength(1);
+  });
+  it('dispense deducts the prescribed quantity, and is refused when stock is short', async () => {
+    const name = `Qty Med ${suffix}`;
+    const m = await api()
+      .post('/api/v1/inventory')
+      .set(auth(A.pharmacist.token))
+      .send({ name, unit: 'tablet' })
+      .expect(201);
+    await api()
+      .post(`/api/v1/inventory/${m.body.id}/receive`)
+      .set(auth(A.pharmacist.token))
+      .send({ quantity: 5 })
+      .expect(201);
+
+    const mk = (quantity: number) => ({
+      patientId: A.patientId,
+      items: [
+        { medicine: name, dose: '1 tablet', frequency: 'Daily', durationDays: 3, quantity },
+      ],
+    });
+
+    // 3 of 5 units: succeeds, 2 left
+    const p1 = await api()
+      .post('/api/v1/prescriptions')
+      .set(auth(A.doctor.token))
+      .send(mk(3))
+      .expect(201);
+    await api()
+      .patch(`/api/v1/prescriptions/${p1.body.id}/status`)
+      .set(auth(A.pharmacist.token))
+      .send({ status: 'DISPENSED' })
+      .expect(200);
+    const after1 = await prisma.medicine.findUnique({ where: { id: m.body.id } });
+    expect(after1?.quantity).toBe(2);
+
+    // another 3 with only 2 left: refused, nothing changes
+    const p2 = await api()
+      .post('/api/v1/prescriptions')
+      .set(auth(A.doctor.token))
+      .send(mk(3))
+      .expect(201);
+    await api()
+      .patch(`/api/v1/prescriptions/${p2.body.id}/status`)
+      .set(auth(A.pharmacist.token))
+      .send({ status: 'DISPENSED' })
+      .expect(409);
+    const after2 = await prisma.medicine.findUnique({ where: { id: m.body.id } });
+    expect(after2?.quantity).toBe(2);
+    const row = await prisma.prescription.findUnique({ where: { id: p2.body.id } });
+    expect(row?.status).toBe('PENDING');
   });
 });
