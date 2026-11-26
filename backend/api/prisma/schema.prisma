@@ -63,6 +63,7 @@ model Organization {
 }
 
 model Hospital {
+  careRecords    CareRecord[]
   medicalRecords MedicalRecord[]
   doctorProfiles DoctorProfile[]
   wards          Ward[]
@@ -91,6 +92,7 @@ model Hospital {
   @@index([organizationId])
 }
 model Patient {
+  careRecords   CareRecord[]
   medicalRecord MedicalRecord?
   admissions    Admission[]
   id          String    @id @default(uuid())
@@ -118,6 +120,7 @@ model Patient {
 }
 
 model User {
+  careRecordsEntered CareRecord[] @relation("CareRecordedBy")
   doctorProfile DoctorProfile?
   id            String         @id @default(uuid())
   hospitalId    String?
@@ -450,4 +453,24 @@ model MedicalRecord {
   updatedAt         DateTime @updatedAt
 
   @@index([hospitalId])
+}
+
+
+model CareRecord {
+  id           String   @id @default(uuid())
+  hospitalId   String
+  hospital     Hospital @relation(fields: [hospitalId], references: [id])
+  patientId    String
+  patient      Patient  @relation(fields: [patientId], references: [id])
+  recordedById String
+  recordedBy   User     @relation("CareRecordedBy", fields: [recordedById], references: [id])
+  systolic     Int?
+  diastolic    Int?
+  pulse        Int?
+  temperatureC Float?
+  oxygenSat    Int?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  @@index([hospitalId, patientId, createdAt])
 }
