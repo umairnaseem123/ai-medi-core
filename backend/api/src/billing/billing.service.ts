@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -144,5 +144,40 @@ export class BillingService {
       entityId: payment.id,
     });
     return payment;
+  }
+  async cancel(hospitalId: string | null, userId: string, invoiceId: string) {
+    const hid = this.requireHospital(hospitalId);
+    const inv = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, hospitalId: hid },
+    });
+    if (!inv) throw new NotFoundException('Invoice not found');
+
+    // Succeeds only while the invoice is still pending with nothing paid
+    const done = await this.prisma.invoice.updateMany({
+      where: {
+        id: invoiceId,
+        hospitalId: hid,
+        status: 'PENDING',
+        paidAmount: 0,
+      },
+      data: { status: 'CANCELLED' },
+    });
+    if (done.count === 0) {
+      throw new ConflictException(
+        'Only a pending invoice with no payments can be cancelled',
+      );
+    }
+
+    await this.audit.log({
+      hospitalId: hid,
+      userId,
+      action: 'UPDATE',
+      entity: 'Invoice',
+      entityId: invoiceId,
+    });
+    return this.prisma.invoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      include: { items: true },
+    });
   }
 }

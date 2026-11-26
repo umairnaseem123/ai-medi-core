@@ -227,4 +227,55 @@ describe('Billing (e2e)', () => {
     expect(row.paidAmount).toBe(1500);
     expect(row.status).toBe('PENDING');
   });
+  const cancel = (token: string, id: string) =>
+    api().patch(`/api/v1/invoices/${id}/cancel`).set(auth(token));
+
+  it('cancel: unpaid invoice is cancelled once, then it cannot be paid or cancelled again', async () => {
+    const id = await newInvoice(A.receptionist.token, A.patientId);
+
+    const res = await cancel(A.receptionist.token, id).expect(200);
+    expect(res.body.status).toBe('CANCELLED');
+
+    await cancel(A.receptionist.token, id).expect(409);
+    await pay(A.receptionist.token, id, 100).expect(409);
+  });
+
+  it('cancel: refused once any payment has been made', async () => {
+    const id = await newInvoice(A.adminToken, A.patientId);
+    await pay(A.adminToken, id, 100).expect(201);
+
+    await cancel(A.adminToken, id).expect(409);
+    const row = await getInvoice(A.adminToken, id);
+    expect(row.status).toBe('PENDING');
+    expect(row.paidAmount).toBe(100);
+  });
+
+  it('cancel: hospital B gets 404, doctor 403', async () => {
+    const id = await newInvoice(A.adminToken, A.patientId);
+
+    await cancel(B.adminToken, id).expect(404);
+    await cancel(A.doctor.token, id).expect(403);
+    const row = await getInvoice(A.adminToken, id);
+    expect(row.status).toBe('PENDING');
+  });
+
+  it('cancel: a cancel and a payment at once, only one wins', async () => {
+    const id = await newInvoice(A.receptionist.token, A.patientId);
+
+    const [c, p] = await Promise.all([
+      cancel(A.receptionist.token, id),
+      pay(A.adminToken, id, 500),
+    ]);
+    const wins = [c.status === 200, p.status === 201].filter(Boolean).length;
+    expect(wins).toBe(1);
+
+    const row = await getInvoice(A.adminToken, id);
+    if (c.status === 200) {
+      expect(row.status).toBe('CANCELLED');
+      expect(row.paidAmount).toBe(0);
+    } else {
+      expect(row.status).toBe('PENDING');
+      expect(row.paidAmount).toBe(500);
+    }
+  });
 });

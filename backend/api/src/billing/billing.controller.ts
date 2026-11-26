@@ -1,9 +1,10 @@
-import {
+﻿import {
   Body,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -37,5 +38,13 @@ export class BillingController {
     @Body() dto: CreatePaymentDto,
   ) {
     return this.billing.pay(user.hospitalId, user.userId, id, dto);
+  }
+  @Roles('HOSPITAL_ADMIN', 'RECEPTIONIST')
+  @Patch(':id/cancel')
+  cancel(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.billing.cancel(user.hospitalId, user.userId, id);
   }
 }
