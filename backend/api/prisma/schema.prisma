@@ -63,6 +63,9 @@ model Organization {
 }
 
 model Hospital {
+  wards          Ward[]
+  beds           Bed[]
+  admissions     Admission[]
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -86,6 +89,7 @@ model Hospital {
   @@index([organizationId])
 }
 model Patient {
+  admissions    Admission[]
   id          String    @id @default(uuid())
   hospitalId  String
   hospital    Hospital  @relation(fields: [hospitalId], references: [id])
@@ -354,4 +358,58 @@ model Payment {
   createdAt    DateTime      @default(now())
 
   @@index([hospitalId, invoiceId])
+}
+
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+}
+
+model Ward {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id])
+  name        String
+  description String?
+  beds        Bed[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([hospitalId, name])
+  @@index([hospitalId])
+}
+
+model Bed {
+  id          String      @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital    @relation(fields: [hospitalId], references: [id])
+  wardId      String
+  ward        Ward        @relation(fields: [wardId], references: [id])
+  label       String
+  status      BedStatus   @default(AVAILABLE)
+  admissions  Admission[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([wardId, label])
+  @@index([hospitalId, status])
+}
+
+model Admission {
+  id           String    @id @default(uuid())
+  hospitalId   String
+  hospital     Hospital  @relation(fields: [hospitalId], references: [id])
+  patientId    String
+  patient      Patient   @relation(fields: [patientId], references: [id])
+  bedId        String
+  bed          Bed       @relation(fields: [bedId], references: [id])
+  admittedById String
+  admittedAt   DateTime  @default(now())
+  dischargedAt DateTime?
+  notes        String?
+
+  @@index([hospitalId, patientId])
+  @@index([bedId])
 }
