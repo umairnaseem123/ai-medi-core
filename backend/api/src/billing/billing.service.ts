@@ -1,11 +1,14 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../database/prisma.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
 
 const MAX_TOTAL = 2_000_000_000; // stays inside a 32-bit integer column
 
@@ -76,5 +79,70 @@ export class BillingService {
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+  }
+
+  async pay(
+    hospitalId: string | null,
+    userId: string,
+    invoiceId: string,
+    dto: CreatePaymentDto,
+  ) {
+    const hid = this.requireHospital(hospitalId);
+
+    const payment = await this.prisma.$transaction(async (tx) => {
+      const inv = await tx.invoice.findFirst({
+        where: { id: invoiceId, hospitalId: hid },
+      });
+      if (!inv) throw new NotFoundException('Invoice not found');
+      if (inv.status !== 'PENDING') {
+        throw new ConflictException('Invoice is already closed');
+      }
+
+      const remaining = inv.total - inv.paidAmount;
+      if (dto.amount > remaining) {
+        throw new ConflictException(
+          `Amount exceeds the remaining balance (${remaining})`,
+        );
+      }
+      const newPaid = inv.paidAmount + dto.amount;
+
+      // Only succeeds if nobody else paid in between (paidAmount unchanged)
+      const claimed = await tx.invoice.updateMany({
+        where: {
+          id: invoiceId,
+          hospitalId: hid,
+          status: 'PENDING',
+          paidAmount: inv.paidAmount,
+        },
+        data: {
+          paidAmount: newPaid,
+          status: newPaid === inv.total ? 'PAID' : 'PENDING',
+        },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException(
+          'Invoice was changed by another payment, please retry',
+        );
+      }
+
+      return tx.payment.create({
+        data: {
+          hospitalId: hid,
+          invoiceId,
+          amount: dto.amount,
+          method: dto.method,
+          receivedById: userId,
+        },
+      });
+    });
+
+    await this.audit.log({
+      hospitalId: hid,
+      userId,
+      action: 'CREATE',
+      entity: 'Payment',
+      entityId: payment.id,
+    });
+    return payment;
   }
 }

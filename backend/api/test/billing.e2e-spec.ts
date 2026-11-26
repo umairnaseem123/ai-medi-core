@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+﻿import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
@@ -163,5 +163,68 @@ describe('Billing (e2e)', () => {
       .expect(403);
     await api().get('/api/v1/invoices').set(auth(A.receptionist.token)).expect(200);
     await api().get('/api/v1/invoices').set(auth(A.adminToken)).expect(200);
+  });
+  const newInvoice = async (token: string, patientId: string) =>
+    (
+      await api()
+        .post('/api/v1/invoices')
+        .set(auth(token))
+        .send(inv(patientId))
+        .expect(201)
+    ).body.id as string;
+
+  const pay = (token: string, id: string, amount: number, method = 'CASH') =>
+    api()
+      .post(`/api/v1/invoices/${id}/payments`)
+      .set(auth(token))
+      .send({ amount, method });
+
+  const getInvoice = async (token: string, id: string) => {
+    const res = await api().get('/api/v1/invoices').set(auth(token)).expect(200);
+    return res.body.find((i: { id: string }) => i.id === id);
+  };
+
+  it('payments: partial then full closes the invoice, overpay and extra payments are refused', async () => {
+    const id = await newInvoice(A.receptionist.token, A.patientId); // total 2000
+
+    await pay(A.receptionist.token, id, 500).expect(201);
+    let row = await getInvoice(A.adminToken, id);
+    expect(row.paidAmount).toBe(500);
+    expect(row.status).toBe('PENDING');
+
+    await pay(A.receptionist.token, id, 2000).expect(409); // more than the 1500 left
+
+    await pay(A.receptionist.token, id, 1500, 'CARD').expect(201);
+    row = await getInvoice(A.adminToken, id);
+    expect(row.paidAmount).toBe(2000);
+    expect(row.status).toBe('PAID');
+
+    await pay(A.receptionist.token, id, 1).expect(409); // already closed
+  });
+
+  it('payments: hospital B gets 404, doctor 403, bad input 400', async () => {
+    const id = await newInvoice(A.adminToken, A.patientId);
+
+    await pay(B.adminToken, id, 100).expect(404);
+    await pay(A.doctor.token, id, 100).expect(403);
+    await pay(A.adminToken, id, 0).expect(400);
+    await pay(A.adminToken, id, 100, 'GOLD').expect(400);
+
+    const row = await getInvoice(A.adminToken, id);
+    expect(row.paidAmount).toBe(0);
+  });
+
+  it('payments: two at once that together exceed the total, only one wins', async () => {
+    const id = await newInvoice(A.receptionist.token, A.patientId); // total 2000
+
+    const [a, b] = await Promise.all([
+      pay(A.receptionist.token, id, 1500),
+      pay(A.adminToken, id, 1500),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+
+    const row = await getInvoice(A.adminToken, id);
+    expect(row.paidAmount).toBe(1500);
+    expect(row.status).toBe('PENDING');
   });
 });
