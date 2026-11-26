@@ -151,4 +151,92 @@ describe('Wards and beds (e2e)', () => {
       .send({ label: 'X', status: 'OCCUPIED' })
       .expect(400);
   });
+  const newPatient = async (token: string, tag: string) =>
+    (
+      await api()
+        .post('/api/v1/patients')
+        .set(auth(token))
+        .send({
+          firstName: 'Pat',
+          lastName: `${tag}${Math.random().toString(36).slice(2, 7)}`,
+          dateOfBirth: '1990-01-01',
+          gender: 'MALE',
+        })
+        .expect(201)
+    ).body.id as string;
+
+  const newBed = async (token: string, ward: string) =>
+    (
+      await api()
+        .post(`/api/v1/wards/${ward}/beds`)
+        .set(auth(token))
+        .send({ label: `B-${Math.random().toString(36).slice(2, 8)}` })
+        .expect(201)
+    ).body.id as string;
+
+  const admit = (token: string, bedId: string, patientId: string) =>
+    api()
+      .post(`/api/v1/wards/beds/${bedId}/admit`)
+      .set(auth(token))
+      .send({ patientId });
+
+  const discharge = (token: string, admissionId: string) =>
+    api()
+      .post(`/api/v1/wards/admissions/${admissionId}/discharge`)
+      .set(auth(token));
+
+  const bedStatus = async (token: string, bedId: string) => {
+    const res = await api().get('/api/v1/wards').set(auth(token)).expect(200);
+    for (const w of res.body) {
+      const b = w.beds.find((x: { id: string }) => x.id === bedId);
+      if (b) return b.status as string;
+    }
+    return undefined;
+  };
+
+  it('admit: one bed per patient and one patient per bed, discharge frees the bed', async () => {
+    const bed1 = await newBed(A.adminToken, wardA);
+    const bed2 = await newBed(A.adminToken, wardA);
+    const p1 = await newPatient(A.adminToken, 'AdmitOne');
+    const p2 = await newPatient(A.adminToken, 'AdmitTwo');
+
+    const a = await admit(A.nurse.token, bed1, p1).expect(201);
+    expect(await bedStatus(A.adminToken, bed1)).toBe('OCCUPIED');
+
+    await admit(A.nurse.token, bed2, p1).expect(409); // already admitted
+    await admit(A.nurse.token, bed1, p2).expect(409); // bed taken
+
+    await discharge(A.nurse.token, a.body.id).expect(201);
+    expect(await bedStatus(A.adminToken, bed1)).toBe('AVAILABLE');
+    await discharge(A.nurse.token, a.body.id).expect(409); // already discharged
+
+    await admit(A.doctor.token, bed1, p2).expect(201); // bed is reusable
+  });
+
+  it('admit: hospital B gets 404 on A beds and admissions, pharmacist 403', async () => {
+    const bed = await newBed(A.adminToken, wardA);
+    const p = await newPatient(A.adminToken, 'AdmitIso');
+    const pB = await newPatient(B.adminToken, 'AdmitIsoB');
+
+    await admit(B.adminToken, bed, pB).expect(404);
+    await admit(A.pharmacist.token, bed, p).expect(403);
+
+    const a = await admit(A.adminToken, bed, p).expect(201);
+    await discharge(B.adminToken, a.body.id).expect(404);
+    await discharge(A.pharmacist.token, a.body.id).expect(403);
+    expect(await bedStatus(A.adminToken, bed)).toBe('OCCUPIED');
+  });
+
+  it('admit: two patients racing for one bed, only one wins', async () => {
+    const bed = await newBed(A.adminToken, wardA);
+    const p1 = await newPatient(A.adminToken, 'RaceOne');
+    const p2 = await newPatient(A.adminToken, 'RaceTwo');
+
+    const [x, y] = await Promise.all([
+      admit(A.nurse.token, bed, p1),
+      admit(A.doctor.token, bed, p2),
+    ]);
+    expect([x.status, y.status].sort()).toEqual([201, 409]);
+    expect(await bedStatus(A.adminToken, bed)).toBe('OCCUPIED');
+  });
 });

@@ -9,6 +9,7 @@ import {
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { AdmitPatientDto } from './dto/admit-patient.dto';
 import { CreateBedDto } from './dto/create-bed.dto';
 import { CreateWardDto } from './dto/create-ward.dto';
 import { WardsService } from './wards.service';
@@ -37,5 +38,23 @@ export class WardsController {
   @Get()
   list(@CurrentUser() user: AuthUser) {
     return this.wards.list(user.hospitalId);
+  }
+  @Roles('HOSPITAL_ADMIN', 'DOCTOR', 'NURSE')
+  @Post('beds/:bedId/admit')
+  admit(
+    @CurrentUser() user: AuthUser,
+    @Param('bedId', ParseUUIDPipe) bedId: string,
+    @Body() dto: AdmitPatientDto,
+  ) {
+    return this.wards.admit(user.hospitalId, user.userId, bedId, dto);
+  }
+
+  @Roles('HOSPITAL_ADMIN', 'DOCTOR', 'NURSE')
+  @Post('admissions/:id/discharge')
+  discharge(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.wards.discharge(user.hospitalId, user.userId, id);
   }
 }

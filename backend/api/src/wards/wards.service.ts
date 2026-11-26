@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -7,6 +8,7 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../database/prisma.service';
 import { CreateBedDto } from './dto/create-bed.dto';
+import { AdmitPatientDto } from './dto/admit-patient.dto';
 import { CreateWardDto } from './dto/create-ward.dto';
 
 @Injectable()
@@ -98,5 +100,100 @@ export class WardsService {
       },
       orderBy: { name: 'asc' },
     });
+  }
+  async admit(
+    hospitalId: string | null,
+    userId: string,
+    bedId: string,
+    dto: AdmitPatientDto,
+  ) {
+    const hid = this.requireHospital(hospitalId);
+
+    const admission = await this.prisma.$transaction(async (tx) => {
+      const bed = await tx.bed.findFirst({
+        where: { id: bedId, hospitalId: hid },
+      });
+      if (!bed) throw new NotFoundException('Bed not found');
+
+      const patient = await tx.patient.findFirst({
+        where: { id: dto.patientId, hospitalId: hid },
+      });
+      if (!patient) throw new BadRequestException('Invalid patient');
+
+      const already = await tx.admission.findFirst({
+        where: { patientId: dto.patientId, hospitalId: hid, dischargedAt: null },
+      });
+      if (already) {
+        throw new ConflictException('Patient is already admitted');
+      }
+
+      // Claim the bed: only succeeds while it is still available
+      const claimed = await tx.bed.updateMany({
+        where: { id: bedId, hospitalId: hid, status: 'AVAILABLE' },
+        data: { status: 'OCCUPIED' },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException('Bed is not available');
+      }
+
+      return tx.admission.create({
+        data: {
+          hospitalId: hid,
+          patientId: dto.patientId,
+          bedId,
+          admittedById: userId,
+          notes: dto.notes,
+        },
+      });
+    });
+
+    await this.audit.log({
+      hospitalId: hid,
+      userId,
+      action: 'CREATE',
+      entity: 'Admission',
+      entityId: admission.id,
+    });
+    return admission;
+  }
+
+  async discharge(
+    hospitalId: string | null,
+    userId: string,
+    admissionId: string,
+  ) {
+    const hid = this.requireHospital(hospitalId);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const adm = await tx.admission.findFirst({
+        where: { id: admissionId, hospitalId: hid },
+      });
+      if (!adm) throw new NotFoundException('Admission not found');
+
+      // Only succeeds if the patient has not been discharged yet
+      const closed = await tx.admission.updateMany({
+        where: { id: admissionId, hospitalId: hid, dischargedAt: null },
+        data: { dischargedAt: new Date() },
+      });
+      if (closed.count === 0) {
+        throw new ConflictException('Patient is already discharged');
+      }
+
+      await tx.bed.update({
+        where: { id: adm.bedId },
+        data: { status: 'AVAILABLE' },
+      });
+
+      return tx.admission.findUniqueOrThrow({ where: { id: admissionId } });
+    });
+
+    await this.audit.log({
+      hospitalId: hid,
+      userId,
+      action: 'UPDATE',
+      entity: 'Admission',
+      entityId: admissionId,
+    });
+    return result;
   }
 }
