@@ -63,6 +63,7 @@ model Organization {
 }
 
 model Hospital {
+  doctorProfiles DoctorProfile[]
   wards          Ward[]
   beds           Bed[]
   admissions     Admission[]
@@ -115,6 +116,7 @@ model Patient {
 }
 
 model User {
+  doctorProfile DoctorProfile?
   id            String         @id @default(uuid())
   hospitalId    String?
   hospital      Hospital?      @relation(fields: [hospitalId], references: [id])
@@ -412,4 +414,20 @@ model Admission {
 
   @@index([hospitalId, patientId])
   @@index([bedId])
+}
+
+
+model DoctorProfile {
+  id            String   @id @default(uuid())
+  hospitalId    String
+  hospital      Hospital @relation(fields: [hospitalId], references: [id])
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialization String
+  licenseNumber String?
+  bio           String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([hospitalId])
 }

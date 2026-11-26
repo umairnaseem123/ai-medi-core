@@ -21,6 +21,7 @@ import { PharmacyModule } from './pharmacy/pharmacy.module';
 import { StaffModule } from './staff/staff.module';
 import { BillingModule } from './billing/billing.module';
 import { WardsModule } from './wards/wards.module';
+import { DoctorsModule } from './doctors/doctors.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { WardsModule } from './wards/wards.module';
     InventoryModule,
         BillingModule,
         WardsModule,
+        DoctorsModule,
   ],
   providers: [
     // Throttle first, so abusive traffic is rejected before auth work
