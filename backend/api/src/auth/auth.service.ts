@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -19,6 +21,7 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -109,6 +112,70 @@ export class AuthService {
     });
   }
 
+  async forgotPassword(rawEmail: string): Promise<void> {
+    const email = rawEmail.toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    // Same silent result for unknown, suspended and active accounts
+    if (!user || user.status !== 'ACTIVE') return;
+
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.$transaction([
+      // Only the newest token may work
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: this.hashToken(token),
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        },
+      }),
+    ]);
+
+    // No email service yet: in development the token is printed instead
+    if (this.config.get<string>('nodeEnv') !== 'production') {
+      this.logger.warn(`DEV password reset token for ${email}: ${token}`);
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const stored = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: this.hashToken(token) },
+      include: { user: true },
+    });
+    if (
+      !stored ||
+      stored.usedAt ||
+      stored.expiresAt < new Date() ||
+      stored.user.status !== 'ACTIVE'
+    ) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Only one request can claim a token
+      const claimed = await tx.passwordResetToken.updateMany({
+        where: { id: stored.id, usedAt: null, expiresAt: { gt: new Date() } },
+        data: { usedAt: new Date() },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException('Invalid or expired token');
+      }
+      await tx.user.update({
+        where: { id: stored.userId },
+        data: { passwordHash },
+      });
+      // Every existing session ends with the old password
+      await tx.refreshToken.updateMany({
+        where: { userId: stored.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+    return { success: true };
+  }
   private async issueTokens(user: {
     id: string;
     email: string;
