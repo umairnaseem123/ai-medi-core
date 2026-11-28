@@ -243,6 +243,8 @@ model LabOrder {
   resultById   String?
   resultBy     User?          @relation("EnteredLabResults", fields: [resultById], references: [id])
   resultAt     DateTime?
+  releasedAt    DateTime?
+  releasedById  String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 

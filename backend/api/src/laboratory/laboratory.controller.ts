@@ -59,4 +59,12 @@ export class LaboratoryController {
   ) {
     return this.lab.enterResult(user.hospitalId, user.userId, id, dto);
   }
+  @Roles('DOCTOR')
+  @Patch(':id/release')
+  release(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.lab.release(user.hospitalId, user.userId, id);
+  }
 }

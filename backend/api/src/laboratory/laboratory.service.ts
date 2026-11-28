@@ -157,4 +157,33 @@ export class LaboratoryService {
     });
     return updated;
   }
+  async release(hospitalId: string | null, userId: string, id: string) {
+    const order = await this.findOwned(hospitalId, id);
+    if (order.status !== 'COMPLETED') {
+      throw new ConflictException('Only a completed result can be released');
+    }
+
+    // Succeeds only while the result is still unreleased
+    const done = await this.prisma.labOrder.updateMany({
+      where: {
+        id,
+        hospitalId: order.hospitalId,
+        status: 'COMPLETED',
+        releasedAt: null,
+      },
+      data: { releasedAt: new Date(), releasedById: userId },
+    });
+    if (done.count === 0) {
+      throw new ConflictException('Result is already released');
+    }
+
+    await this.audit.log({
+      hospitalId: order.hospitalId,
+      userId,
+      action: 'UPDATE',
+      entity: 'LabOrder',
+      entityId: id,
+    });
+    return this.prisma.labOrder.findUniqueOrThrow({ where: { id } });
+  }
 }
