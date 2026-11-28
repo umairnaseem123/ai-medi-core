@@ -151,4 +151,28 @@ export class PatientPortalService {
     });
     return list;
   }
+  async myLabResults(hospitalId: string | null, userId: string) {
+    const { hid, patientId } = await this.ownPatient(hospitalId, userId);
+    const list = await this.prisma.labOrder.findMany({
+      where: { hospitalId: hid, patientId, releasedAt: { not: null } },
+      select: {
+        id: true,
+        testName: true,
+        result: true,
+        resultAt: true,
+        releasedAt: true,
+        orderedBy: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { releasedAt: 'desc' },
+      take: 100,
+    });
+    await this.audit.log({
+      hospitalId: hid,
+      userId,
+      action: 'READ',
+      entity: 'Patient',
+      entityId: patientId,
+    });
+    return list;
+  }
 }

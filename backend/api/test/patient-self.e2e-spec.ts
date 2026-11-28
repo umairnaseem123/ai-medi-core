@@ -217,4 +217,46 @@ describe('Patient self-service (e2e)', () => {
     });
     expect(logs.length).toBeGreaterThan(0);
   });
+  const labOrder = (patientId: string, testName: string, released: boolean) =>
+    prisma.labOrder.create({
+      data: {
+        hospitalId: A.hospitalId,
+        patientId,
+        orderedById: A.doctor.id,
+        testName,
+        status: 'COMPLETED',
+        result: `result of ${testName}`,
+        resultAt: new Date(),
+        ...(released ? { releasedAt: new Date(), releasedById: A.doctor.id } : {}),
+      },
+    });
+
+  it('lab-results: patient sees only their own released results, without internal fields', async () => {
+    await labOrder(P1.patientId, 'released-one', true);
+    await labOrder(P1.patientId, 'unreleased-one', false);
+    await labOrder(P2.patientId, 'released-two', true);
+
+    const res = await api().get('/api/v1/me/lab-results').set(auth(P1.token)).expect(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].testName).toBe('released-one');
+
+    const text = JSON.stringify(res.body);
+    expect(text).not.toContain('unreleased-one');
+    expect(text).not.toContain('released-two');
+    expect(text).not.toContain('hospitalId');
+    expect(text).not.toContain('resultById');
+    expect(text).not.toContain('releasedById');
+  });
+
+  it('lab-results: a patient from hospital B sees nothing from hospital A', async () => {
+    const res = await api().get('/api/v1/me/lab-results').set(auth(PB.token)).expect(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('lab-results: staff get 403 and no token gets 401', async () => {
+    for (const token of [A.adminToken, A.doctor.token, A.receptionist.token]) {
+      await api().get('/api/v1/me/lab-results').set(auth(token)).expect(403);
+    }
+    await api().get('/api/v1/me/lab-results').expect(401);
+  });
 });
