@@ -82,4 +82,73 @@ export class PatientPortalService {
     });
     return user;
   }
+  private async ownPatient(hospitalId: string | null, userId: string) {
+    const hid = this.requireHospital(hospitalId);
+    const patient = await this.prisma.patient.findFirst({
+      where: { userId, hospitalId: hid },
+      select: { id: true },
+    });
+    if (!patient) {
+      throw new NotFoundException('No patient record is linked to this login');
+    }
+    return { hid, patientId: patient.id };
+  }
+
+  async myAppointments(hospitalId: string | null, userId: string) {
+    const { hid, patientId } = await this.ownPatient(hospitalId, userId);
+    const list = await this.prisma.appointment.findMany({
+      where: { hospitalId: hid, patientId },
+      select: {
+        id: true,
+        startsAt: true,
+        endsAt: true,
+        reason: true,
+        status: true,
+        doctor: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { startsAt: 'desc' },
+      take: 100,
+    });
+    await this.audit.log({
+      hospitalId: hid,
+      userId,
+      action: 'READ',
+      entity: 'Patient',
+      entityId: patientId,
+    });
+    return list;
+  }
+
+  async myPrescriptions(hospitalId: string | null, userId: string) {
+    const { hid, patientId } = await this.ownPatient(hospitalId, userId);
+    const list = await this.prisma.prescription.findMany({
+      where: { hospitalId: hid, patientId },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        dispensedAt: true,
+        items: {
+          select: {
+            medicine: true,
+            dose: true,
+            frequency: true,
+            durationDays: true,
+            quantity: true,
+          },
+        },
+        prescriber: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    await this.audit.log({
+      hospitalId: hid,
+      userId,
+      action: 'READ',
+      entity: 'Patient',
+      entityId: patientId,
+    });
+    return list;
+  }
 }
