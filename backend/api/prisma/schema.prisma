@@ -92,6 +92,8 @@ model Hospital {
   @@index([organizationId])
 }
 model Patient {
+  userId        String?   @unique
+  user          User?     @relation("PatientLogin", fields: [userId], references: [id])
   careRecords   CareRecord[]
   medicalRecord MedicalRecord?
   admissions    Admission[]
@@ -120,6 +122,7 @@ model Patient {
 }
 
 model User {
+  patientProfile Patient? @relation("PatientLogin")
   careRecordsEntered CareRecord[] @relation("CareRecordedBy")
   doctorProfile DoctorProfile?
   id            String         @id @default(uuid())
