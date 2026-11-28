@@ -259,4 +259,48 @@ describe('Patient self-service (e2e)', () => {
     }
     await api().get('/api/v1/me/lab-results').expect(401);
   });
+  const makeInvoice = async (patientId: string, description: string) =>
+    (
+      await api()
+        .post('/api/v1/invoices')
+        .set(auth(A.adminToken))
+        .send({ patientId, items: [{ description, quantity: 2, unitPrice: 500 }] })
+        .expect(201)
+    ).body.id as string;
+
+  it('invoices: patient sees only their own invoices with items and payments, without internal fields', async () => {
+    const inv1 = await makeInvoice(P1.patientId, 'invoice-item-one');
+    await makeInvoice(P2.patientId, 'invoice-item-two');
+    await api()
+      .post(`/api/v1/invoices/${inv1}/payments`)
+      .set(auth(A.adminToken))
+      .send({ amount: 400, method: 'CASH' })
+      .expect(201);
+
+    const res = await api().get('/api/v1/me/invoices').set(auth(P1.token)).expect(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].total).toBe(1000);
+    expect(res.body[0].paidAmount).toBe(400);
+    expect(res.body[0].status).toBe('PENDING');
+    expect(res.body[0].items[0].description).toBe('invoice-item-one');
+    expect(res.body[0].payments).toHaveLength(1);
+
+    const text = JSON.stringify(res.body);
+    expect(text).not.toContain('invoice-item-two');
+    expect(text).not.toContain('hospitalId');
+    expect(text).not.toContain('createdById');
+    expect(text).not.toContain('receivedById');
+  });
+
+  it('invoices: a patient from hospital B sees nothing from hospital A', async () => {
+    const res = await api().get('/api/v1/me/invoices').set(auth(PB.token)).expect(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('invoices: staff get 403 and no token gets 401', async () => {
+    for (const token of [A.adminToken, A.doctor.token, A.receptionist.token]) {
+      await api().get('/api/v1/me/invoices').set(auth(token)).expect(403);
+    }
+    await api().get('/api/v1/me/invoices').expect(401);
+  });
 });

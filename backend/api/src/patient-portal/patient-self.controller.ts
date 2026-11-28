@@ -22,4 +22,8 @@ export class PatientSelfController {
   labResults(@CurrentUser() user: AuthUser) {
     return this.portal.myLabResults(user.hospitalId, user.userId);
   }
+  @Get('invoices')
+  invoices(@CurrentUser() user: AuthUser) {
+    return this.portal.myInvoices(user.hospitalId, user.userId);
+  }
 }

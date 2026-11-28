@@ -175,4 +175,35 @@ export class PatientPortalService {
     });
     return list;
   }
+  async myInvoices(hospitalId: string | null, userId: string) {
+    const { hid, patientId } = await this.ownPatient(hospitalId, userId);
+    const list = await this.prisma.invoice.findMany({
+      where: { hospitalId: hid, patientId },
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        total: true,
+        paidAmount: true,
+        createdAt: true,
+        items: {
+          select: { description: true, quantity: true, unitPrice: true },
+        },
+        payments: {
+          select: { amount: true, method: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    await this.audit.log({
+      hospitalId: hid,
+      userId,
+      action: 'READ',
+      entity: 'Patient',
+      entityId: patientId,
+    });
+    return list;
+  }
 }
